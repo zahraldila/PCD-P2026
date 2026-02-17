@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-
 {% block title %}Hasil RGB{% endblock %}
 
 {% block content %}
@@ -7,30 +6,56 @@
 <h2 class="text-center">Gambar yang Diunggah</h2>
 
 <div class="text-center">
-    <img src="{{ image_path }}" class="img-fluid rounded shadow mb-4" width="400">
+  <img src="{{ image_path }}" class="img-fluid rounded shadow mb-3" width="400">
+  <div class="text-muted">Ukuran: {{ img_shape.width }} × {{ img_shape.height }} (px)</div>
 </div>
 
-<h3 class="text-center">Array RGB</h3>
+<hr>
+
+<h3 class="text-center">Matriks Pixel (10×10 Pojok Kiri Atas)</h3>
 
 <div class="row">
-    <div class="col-md-4">
-        <h5>Merah (R)</h5>
-        <pre class="bg-white p-2">{{ rgb_array['R'] }}</pre>
-    </div>
+  <div class="col-md-4">
+    <h5>R (Merah)</h5>
+    <pre class="bg-white p-2 rounded shadow-sm">{{ rgb_matrix['R'] }}</pre>
+  </div>
+  <div class="col-md-4">
+    <h5>G (Hijau)</h5>
+    <pre class="bg-white p-2 rounded shadow-sm">{{ rgb_matrix['G'] }}</pre>
+  </div>
+  <div class="col-md-4">
+    <h5>B (Biru)</h5>
+    <pre class="bg-white p-2 rounded shadow-sm">{{ rgb_matrix['B'] }}</pre>
+  </div>
+</div>
 
-    <div class="col-md-4">
-        <h5>Hijau (G)</h5>
-        <pre class="bg-white p-2">{{ rgb_array['G'] }}</pre>
-    </div>
+<hr>
 
-    <div class="col-md-4">
-        <h5>Biru (B)</h5>
-        <pre class="bg-white p-2">{{ rgb_array['B'] }}</pre>
-    </div>
+<h3 class="text-center">Histogram RGB</h3>
+<div class="text-center">
+  <img src="{{ hist_path }}" class="img-fluid rounded shadow mb-4">
+</div>
+
+<hr>
+
+<h3 class="text-center">Array RGB (Penuh)</h3>
+<div class="row">
+  <div class="col-md-4">
+    <h5>Merah (R)</h5>
+    <pre class="bg-white p-2 rounded shadow-sm">{{ rgb_array['R'] }}</pre>
+  </div>
+  <div class="col-md-4">
+    <h5>Hijau (G)</h5>
+    <pre class="bg-white p-2 rounded shadow-sm">{{ rgb_array['G'] }}</pre>
+  </div>
+  <div class="col-md-4">
+    <h5>Biru (B)</h5>
+    <pre class="bg-white p-2 rounded shadow-sm">{{ rgb_array['B'] }}</pre>
+  </div>
 </div>
 
 <div class="text-center mt-4">
-    <a href="/" class="btn btn-secondary">Upload Lagi</a>
+  <a href="/" class="btn btn-secondary">Upload Lagi</a>
 </div>
 
 {% endblock %}
