@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Hasil RGB{% endblock %}
+
+{% block content %}
+
+<h2 class="text-center">Gambar yang Diunggah</h2>
+
+<div class="text-center">
+    <img src="{{ image_path }}" class="img-fluid rounded shadow mb-4" width="400">
+</div>
+
+<h3 class="text-center">Array RGB</h3>
+
+<div class="row">
+    <div class="col-md-4">
+        <h5>Merah (R)</h5>
+        <pre class="bg-white p-2">{{ rgb_array['R'] }}</pre>
+    </div>
+
+    <div class="col-md-4">
+        <h5>Hijau (G)</h5>
+        <pre class="bg-white p-2">{{ rgb_array['G'] }}</pre>
+    </div>
+
+    <div class="col-md-4">
+        <h5>Biru (B)</h5>
+        <pre class="bg-white p-2">{{ rgb_array['B'] }}</pre>
+    </div>
+</div>
+
+<div class="text-center mt-4">
+    <a href="/" class="btn btn-secondary">Upload Lagi</a>
+</div>
+
+{% endblock %}
