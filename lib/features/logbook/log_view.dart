@@ -9,6 +9,7 @@ import 'package:logbook_app_094/features/logbook/log_controller.dart';
 import 'package:logbook_app_094/features/logbook/log_editor_page.dart';
 import 'package:logbook_app_094/features/logbook/models/log_model.dart';
 import 'package:logbook_app_094/features/onboarding/onboarding_view.dart';
+import 'package:logbook_app_094/features/vision/vision_view.dart';
 import 'package:logbook_app_094/helpers/log_helper.dart';
 import 'package:logbook_app_094/services/mongo_service.dart';
 
@@ -602,6 +603,18 @@ class _LogViewState extends State<LogView> {
             icon: Icons.refresh_rounded,
             color: Colors.green,
             onTap: () => _controller.loadLogs(widget.currentUser['teamId']),
+          ),
+          _buildTopActionIcon(
+            icon: Icons.camera_alt_rounded,
+            color: Colors.deepPurple,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const VisionView(),
+                ),
+              );
+            },
           ),
           _buildTopActionIcon(
             icon: Icons.logout_rounded,

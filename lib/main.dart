@@ -1,3 +1,4 @@
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -9,8 +10,18 @@ import 'package:logbook_app_094/features/logbook/models/log_model.dart';
 import 'package:logbook_app_094/services/mongo_service.dart';
 import 'package:logbook_app_094/helpers/log_helper.dart';
 
+List<CameraDescription> cameras = [];
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Verifikasi kamera di perangkat
+  try {
+    cameras = await availableCameras();
+    debugPrint('Jumlah kamera terdeteksi: ${cameras.length}');
+  } on CameraException catch (e) {
+    debugPrint('Error kamera: ${e.code}\n${e.description}');
+  }
 
   // 1) Load ENV
   await dotenv.load(fileName: ".env");
