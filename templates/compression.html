@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Kompresi Citra{% endblock %}
+
+{% block content %}
+<div class="container mt-5 mb-5">
+  <h2 class="text-center">Kompresi Citra</h2>
+  <p class="text-center text-muted">
+    Modul 6 - Kompresi Citra dengan Teknik Lossy dan Lossless
+  </p>
+
+  <!-- FORM KOMPRESI -->
+  <div class="card shadow-sm mt-4">
+    <div class="card-body">
+      <h5 class="card-title mb-3">Form Kompresi Citra</h5>
+
+      <form action="/compression/" method="post" enctype="multipart/form-data">
+        <div class="mb-3">
+          <label class="form-label">Pilih Gambar</label>
+          <input
+            name="file"
+            type="file"
+            accept="image/*"
+            class="form-control"
+            required
+          />
+          <div class="form-text">
+            Gunakan citra seperti lena.png, peppers.png, atau cameraman.png.
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Pilih Metode Kompresi</label>
+          <select name="method" id="method" class="form-select" required>
+            <option value="jpeg">JPEG (Lossy)</option>
+            <option value="png">PNG (Lossless)</option>
+          </select>
+        </div>
+
+        <div class="mb-3" id="jpegQualityBox">
+          <label class="form-label">JPEG Quality</label>
+          <select name="jpeg_quality" class="form-select">
+            <option value="95">95 - Kualitas sangat tinggi</option>
+            <option value="75" selected>75 - Kualitas tinggi</option>
+            <option value="50">50 - Kualitas sedang</option>
+            <option value="25">25 - Kualitas rendah</option>
+            <option value="10">10 - Kualitas sangat rendah</option>
+          </select>
+          <div class="form-text">
+            Semakin rendah quality, ukuran file biasanya semakin kecil, tetapi kualitas citra dapat menurun.
+          </div>
+        </div>
+
+        <div class="mb-3" id="pngLevelBox">
+          <label class="form-label">PNG Compression Level</label>
+          <select name="png_level" class="form-select">
+            <option value="0">0 - Kompresi paling rendah</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6 - Default</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9" selected>9 - Kompresi paling tinggi</option>
+          </select>
+          <div class="form-text">
+            Pada PNG, level kompresi mempengaruhi ukuran file, tetapi kualitas gambar tetap dipertahankan.
+          </div>
+        </div>
+
+        <div class="text-center">
+          <button type="submit" class="btn btn-primary">
+            Proses Kompresi
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if result %}
+  <!-- HASIL KOMPRESI -->
+  <div class="card shadow-sm mt-5">
+    <div class="card-body">
+      <h5 class="card-title mb-3">Hasil Kompresi</h5>
+
+      <div class="alert alert-info">
+        <strong>Metode:</strong> {{ result.method }} <br />
+        <strong>Parameter:</strong> {{ result.parameter }} <br />
+        <strong>Nama File:</strong> {{ result.filename }}
+      </div>
+
+      <div class="row mt-4">
+        <div class="col-md-6 mb-4">
+          <h5 class="text-center">Gambar Asli</h5>
+          <div class="text-center">
+            <img
+              src="{{ result.original_image_path }}"
+              alt="Gambar Asli"
+              class="img-fluid rounded shadow-sm"
+              style="max-height: 400px; object-fit: contain;"
+            />
+          </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+          <h5 class="text-center">Gambar Hasil Kompresi</h5>
+          <div class="text-center">
+            <img
+              src="{{ result.compressed_image_path }}"
+              alt="Gambar Hasil Kompresi"
+              class="img-fluid rounded shadow-sm"
+              style="max-height: 400px; object-fit: contain;"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- TABEL METRIK -->
+      <h5 class="mt-4">Tabel Evaluasi Kompresi</h5>
+      <div class="table-responsive">
+        <table class="table table-bordered table-striped align-middle mt-3">
+          <thead class="table-primary text-center">
+            <tr>
+              <th>Parameter</th>
+              <th>Nilai</th>
+              <th>Keterangan</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Ukuran File Asli</td>
+              <td>{{ result.original_size_kb }} KB</td>
+              <td>Ukuran file sebelum dikompresi</td>
+            </tr>
+            <tr>
+              <td>Ukuran File Hasil Kompresi</td>
+              <td>{{ result.compressed_size_kb }} KB</td>
+              <td>Ukuran file setelah dikompresi</td>
+            </tr>
+            <tr>
+              <td>Compression Ratio</td>
+              <td>{{ result.compression_ratio }}</td>
+              <td>
+                Perbandingan ukuran file asli dengan ukuran file hasil kompresi.
+                Nilai lebih dari 1 berarti file hasil kompresi lebih kecil.
+              </td>
+            </tr>
+            <tr>
+              <td>PSNR</td>
+              <td>{{ result.psnr }}</td>
+              <td>
+                Semakin tinggi nilai PSNR, semakin mirip citra hasil kompresi dengan citra asli.
+              </td>
+            </tr>
+            <tr>
+              <td>SSIM</td>
+              <td>{{ result.ssim }}</td>
+              <td>
+                Nilai mendekati 1 menunjukkan struktur citra semakin mirip dengan citra asli.
+              </td>
+            </tr>
+            <tr>
+              <td>Identik</td>
+              <td>{{ result.identical }}</td>
+              <td>
+                Menunjukkan apakah piksel citra hasil kompresi sama persis dengan citra asli.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- PENJELASAN -->
+      <div class="alert alert-secondary mt-4">
+        <h6 class="fw-bold">Penjelasan Singkat</h6>
+        <p class="mb-0">{{ result.explanation }}</p>
+      </div>
+
+      <div class="text-center mt-4">
+        <a href="/compression/" class="btn btn-secondary">
+          Kompresi Gambar Lain
+        </a>
+        <a href="/" class="btn btn-outline-secondary">
+          Kembali ke Home
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  const methodSelect = document.getElementById("method");
+  const jpegQualityBox = document.getElementById("jpegQualityBox");
+  const pngLevelBox = document.getElementById("pngLevelBox");
+
+  function toggleCompressionOptions() {
+    if (methodSelect.value === "jpeg") {
+      jpegQualityBox.style.display = "block";
+      pngLevelBox.style.display = "none";
+    } else {
+      jpegQualityBox.style.display = "none";
+      pngLevelBox.style.display = "block";
+    }
+  }
+
+  methodSelect.addEventListener("change", toggleCompressionOptions);
+  toggleCompressionOptions();
+</script>
+{% endblock %}

@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from skimage.exposure import match_histograms
+from skimage.metrics import structural_similarity as ssim
 
 import numpy as np
 import cv2
@@ -19,6 +20,7 @@ templates = Jinja2Templates(directory="templates")
 os.makedirs("static/uploads", exist_ok=True)
 os.makedirs("static/histograms", exist_ok=True)
 os.makedirs("static/charts", exist_ok=True)
+os.makedirs("static/compressed", exist_ok=True)
 
 
 # =========================
@@ -62,6 +64,119 @@ def save_color_histogram(image):
     plt.savefig(color_histogram_path)
     plt.close()
     return f"/{color_histogram_path}"
+
+
+# =========================
+# Utility Functions Modul 6 - Kompresi Citra
+# =========================
+def save_uploaded_original_file(file_bytes: bytes, original_filename: str):
+    """
+    Menyimpan file asli hasil upload agar ukuran file asli tetap sesuai
+    dengan file yang diunggah, bukan hasil encode ulang OpenCV.
+    """
+    ext = os.path.splitext(original_filename)[1].lower()
+
+    if ext not in [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff"]:
+        ext = ".png"
+
+    filename = f"original_{uuid4()}{ext}"
+    path = os.path.join("static/compressed", filename)
+
+    with open(path, "wb") as f:
+        f.write(file_bytes)
+
+    return path, f"/static/compressed/{filename}"
+
+
+def save_compressed_image(image, method: str, jpeg_quality: int = 75, png_level: int = 9):
+    """
+    Menyimpan citra hasil kompresi berdasarkan metode yang dipilih.
+    JPEG menggunakan quality 0-100.
+    PNG menggunakan compression level 0-9.
+    """
+    method = method.lower()
+
+    if method == "jpeg":
+        filename = f"compressed_jpeg_q{jpeg_quality}_{uuid4()}.jpg"
+        path = os.path.join("static/compressed", filename)
+        cv2.imwrite(path, image, [cv2.IMWRITE_JPEG_QUALITY, int(jpeg_quality)])
+
+    elif method == "png":
+        filename = f"compressed_png_l{png_level}_{uuid4()}.png"
+        path = os.path.join("static/compressed", filename)
+        cv2.imwrite(path, image, [cv2.IMWRITE_PNG_COMPRESSION, int(png_level)])
+
+    else:
+        raise ValueError("Metode kompresi tidak valid.")
+
+    return path, f"/static/compressed/{filename}"
+
+
+def load_compressed_image(path):
+    """
+    Membaca ulang citra hasil kompresi.
+    PSNR dan SSIM dihitung dari citra yang sudah benar-benar dikompresi.
+    """
+    return cv2.imread(path, cv2.IMREAD_COLOR)
+
+
+def calculate_compression_metrics(original_img, compressed_img, original_size, compressed_size):
+    """
+    Menghitung compression ratio, PSNR, SSIM, dan status identik.
+    """
+    if original_img is None or compressed_img is None:
+        return {
+            "compression_ratio": "0.00",
+            "psnr": "Error",
+            "ssim": "Error",
+            "identical": "Tidak"
+        }
+
+    if original_img.shape != compressed_img.shape:
+        compressed_img = cv2.resize(
+            compressed_img,
+            (original_img.shape[1], original_img.shape[0])
+        )
+
+    compression_ratio = original_size / compressed_size if compressed_size > 0 else 0
+
+    psnr_value = cv2.PSNR(original_img, compressed_img)
+
+    try:
+        if len(original_img.shape) == 3:
+            ssim_value = ssim(
+                original_img,
+                compressed_img,
+                channel_axis=2,
+                data_range=255
+            )
+        else:
+            ssim_value = ssim(
+                original_img,
+                compressed_img,
+                data_range=255
+            )
+    except Exception:
+        ssim_value = None
+
+    identical = np.array_equal(original_img, compressed_img)
+
+    if psnr_value == float("inf"):
+        psnr_display = "Infinity"
+    else:
+        psnr_display = f"{psnr_value:.2f}"
+
+    if ssim_value is None:
+        ssim_display = "Error"
+    else:
+        ssim_display = f"{ssim_value:.4f}"
+
+    return {
+        "compression_ratio": f"{compression_ratio:.2f}",
+        "psnr": psnr_display,
+        "ssim": ssim_display,
+        "identical": "Ya" if identical else "Tidak"
+    }
 
 
 # =========================
@@ -150,7 +265,11 @@ def reduce_periodic_noise(image):
 # =========================
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="home.html",
+        context={"request": request}
+    )
 
 
 @app.post("/upload/", response_class=HTMLResponse)
@@ -163,11 +282,15 @@ async def upload_image(request: Request, file: UploadFile = File(...)):
 
     file_path = save_image(img, "uploaded")
 
-    return templates.TemplateResponse("result.html", {
-        "request": request,
-        "original_image_path": file_path,
-        "modified_image_path": file_path
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="result.html",
+        context={
+            "request": request,
+            "original_image_path": file_path,
+            "modified_image_path": file_path
+        }
+    )
 
 
 @app.post("/operation/", response_class=HTMLResponse)
@@ -200,11 +323,15 @@ async def perform_operation(
 
     modified_path = save_image(result_img, "modified")
 
-    return templates.TemplateResponse("result.html", {
-        "request": request,
-        "original_image_path": original_path,
-        "modified_image_path": modified_path
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="result.html",
+        context={
+            "request": request,
+            "original_image_path": original_path,
+            "modified_image_path": modified_path
+        }
+    )
 
 
 @app.post("/logic_operation/", response_class=HTMLResponse)
@@ -246,16 +373,24 @@ async def perform_logic_operation(
 
     modified_path = save_image(result_img, "modified")
 
-    return templates.TemplateResponse("result.html", {
-        "request": request,
-        "original_image_path": original_path,
-        "modified_image_path": modified_path
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="result.html",
+        context={
+            "request": request,
+            "original_image_path": original_path,
+            "modified_image_path": modified_path
+        }
+    )
 
 
 @app.get("/grayscale/", response_class=HTMLResponse)
 async def grayscale_form(request: Request):
-    return templates.TemplateResponse("grayscale.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="grayscale.html",
+        context={"request": request}
+    )
 
 
 @app.post("/grayscale/", response_class=HTMLResponse)
@@ -271,16 +406,24 @@ async def convert_grayscale(request: Request, file: UploadFile = File(...)):
     original_path = save_image(img, "original")
     modified_path = save_image(gray_img, "grayscale")
 
-    return templates.TemplateResponse("result.html", {
-        "request": request,
-        "original_image_path": original_path,
-        "modified_image_path": modified_path
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="result.html",
+        context={
+            "request": request,
+            "original_image_path": original_path,
+            "modified_image_path": modified_path
+        }
+    )
 
 
 @app.get("/histogram/", response_class=HTMLResponse)
 async def histogram_form(request: Request):
-    return templates.TemplateResponse("histogram.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="histogram.html",
+        context={"request": request}
+    )
 
 
 @app.post("/histogram/", response_class=HTMLResponse)
@@ -295,16 +438,24 @@ async def generate_histogram(request: Request, file: UploadFile = File(...)):
     grayscale_histogram_path = save_histogram(gray_img, "grayscale")
     color_histogram_path = save_color_histogram(img)
 
-    return templates.TemplateResponse("histogram.html", {
-        "request": request,
-        "grayscale_histogram_path": grayscale_histogram_path,
-        "color_histogram_path": color_histogram_path
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="histogram.html",
+        context={
+            "request": request,
+            "grayscale_histogram_path": grayscale_histogram_path,
+            "color_histogram_path": color_histogram_path
+        }
+    )
 
 
 @app.get("/equalize/", response_class=HTMLResponse)
 async def equalize_form(request: Request):
-    return templates.TemplateResponse("equalize.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="equalize.html",
+        context={"request": request}
+    )
 
 
 @app.post("/equalize/", response_class=HTMLResponse)
@@ -320,16 +471,24 @@ async def equalize_histogram(request: Request, file: UploadFile = File(...)):
     original_path = save_image(img, "original")
     modified_path = save_image(equalized_img, "equalized")
 
-    return templates.TemplateResponse("result.html", {
-        "request": request,
-        "original_image_path": original_path,
-        "modified_image_path": modified_path
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="result.html",
+        context={
+            "request": request,
+            "original_image_path": original_path,
+            "modified_image_path": modified_path
+        }
+    )
 
 
 @app.get("/specify/", response_class=HTMLResponse)
 async def specify_form(request: Request):
-    return templates.TemplateResponse("specify.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="specify.html",
+        context={"request": request}
+    )
 
 
 @app.post("/specify/", response_class=HTMLResponse)
@@ -353,16 +512,24 @@ async def specify_histogram(
     original_path = save_image(img, "original")
     modified_path = save_image(specified_img, "specified")
 
-    return templates.TemplateResponse("result.html", {
-        "request": request,
-        "original_image_path": original_path,
-        "modified_image_path": modified_path
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="result.html",
+        context={
+            "request": request,
+            "original_image_path": original_path,
+            "modified_image_path": modified_path
+        }
+    )
 
 
 @app.get("/statistics/", response_class=HTMLResponse)
 async def statistics_form(request: Request):
-    return templates.TemplateResponse("statistics.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="statistics.html",
+        context={"request": request}
+    )
 
 
 @app.post("/statistics/", response_class=HTMLResponse)
@@ -378,12 +545,119 @@ async def calculate_statistics(request: Request, file: UploadFile = File(...)):
 
     image_path = save_image(img, "statistics")
 
-    return templates.TemplateResponse("statistics.html", {
-        "request": request,
-        "mean_intensity": mean_intensity,
-        "std_deviation": std_deviation,
-        "image_path": image_path
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="statistics.html",
+        context={
+            "request": request,
+            "mean_intensity": mean_intensity,
+            "std_deviation": std_deviation,
+            "image_path": image_path
+        }
+    )
+
+
+# =========================
+# Route Modul 6: Kompresi Citra
+# =========================
+@app.get("/compression/", response_class=HTMLResponse)
+async def compression_form(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="compression.html",
+        context={
+            "request": request,
+            "result": None
+        }
+    )
+
+
+@app.post("/compression/", response_class=HTMLResponse)
+async def compress_image(
+    request: Request,
+    file: UploadFile = File(...),
+    method: str = Form(...),
+    jpeg_quality: int = Form(75),
+    png_level: int = Form(9)
+):
+    image_data = await file.read()
+    img = decode_image(image_data, cv2.IMREAD_COLOR)
+
+    if img is None:
+        return HTMLResponse("Gagal membaca gambar yang diunggah.", status_code=400)
+
+    method = method.lower()
+
+    if method not in ["jpeg", "png"]:
+        return HTMLResponse("Metode kompresi tidak valid.", status_code=400)
+
+    jpeg_quality = max(0, min(100, int(jpeg_quality)))
+    png_level = max(0, min(9, int(png_level)))
+
+    original_file_path, original_url = save_uploaded_original_file(
+        image_data,
+        file.filename
+    )
+
+    original_size = os.path.getsize(original_file_path)
+
+    compressed_file_path, compressed_url = save_compressed_image(
+        img,
+        method=method,
+        jpeg_quality=jpeg_quality,
+        png_level=png_level
+    )
+
+    compressed_size = os.path.getsize(compressed_file_path)
+    compressed_img = load_compressed_image(compressed_file_path)
+
+    metrics = calculate_compression_metrics(
+        original_img=img,
+        compressed_img=compressed_img,
+        original_size=original_size,
+        compressed_size=compressed_size
+    )
+
+    if method == "jpeg":
+        parameter_label = f"Quality {jpeg_quality}"
+        method_label = "JPEG (Lossy)"
+        explanation = (
+            "JPEG merupakan kompresi lossy, sehingga ukuran file dapat menjadi lebih kecil, "
+            "tetapi sebagian informasi citra dapat hilang. Semakin rendah quality, ukuran file "
+            "biasanya semakin kecil, namun kualitas visual dan nilai PSNR/SSIM dapat menurun."
+        )
+    else:
+        parameter_label = f"Compression Level {png_level}"
+        method_label = "PNG (Lossless)"
+        explanation = (
+            "PNG merupakan kompresi lossless, sehingga citra hasil kompresi idealnya tetap "
+            "identik dengan citra asli. Nilai PSNR dapat menjadi Infinity dan SSIM mendekati "
+            "atau sama dengan 1 apabila tidak ada perbedaan piksel."
+        )
+
+    result = {
+        "filename": file.filename,
+        "method": method_label,
+        "parameter": parameter_label,
+        "original_image_path": original_url,
+        "compressed_image_path": compressed_url,
+        "original_size_kb": f"{original_size / 1024:.2f}",
+        "compressed_size_kb": f"{compressed_size / 1024:.2f}",
+        "compression_ratio": metrics["compression_ratio"],
+        "psnr": metrics["psnr"],
+        "ssim": metrics["ssim"],
+        "identical": metrics["identical"],
+        "explanation": explanation
+    }
+
+    return templates.TemplateResponse(
+        request=request,
+        name="compression.html",
+        context={
+            "request": request,
+            "result": result
+        }
+    )
 
 
 # =========================
@@ -421,8 +695,12 @@ async def colab_operation(
 
     modified_path = save_chart_image(result_img, operation)
 
-    return templates.TemplateResponse("result.html", {
-        "request": request,
-        "original_image_path": original_path,
-        "modified_image_path": modified_path
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="result.html",
+        context={
+            "request": request,
+            "original_image_path": original_path,
+            "modified_image_path": modified_path
+        }
+    )
